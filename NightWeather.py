@@ -116,3 +116,37 @@ Calculate illumination percentage
             'next_rise': self.get_next_rise_set(moon, 'rise'),
             'next_set': self.get_next_rise_set(moon, 'set')
         }
+        def get_planet_info(self, date: Optional[datetime.datetime] = None) -> List[PlanetInfo]:
+        """
+        Get information about visible planets
+
+        Args:
+            date: Date to calculate for (default: current time)
+
+        Returns:
+            List of PlanetInfo objects
+        """
+        if date is None:
+            date = self.get_current_time()
+
+        self.observer.date = date
+        planet_info = []
+
+        for planet_name in self.planets:
+            try:
+                planet = getattr(ephem, planet_name)()
+                planet.compute(self.observer)
+
+Only include planets that are above horizon
+                if planet.alt > 0:
+                    planet_info.append(PlanetInfo(
+                        name=planet_name,
+                        magnitude=planet.mag,
+                        phase=planet.phase if hasattr(planet, 'phase') else 0,
+                        distance=planet.earth_distance,
+                        elongation=planet.elong if hasattr(planet, 'elong') else 0
+                    ))
+            except Exception as e:
+                print(f"Error calculating {planet_name}: {e}")
+
+        return sorted(planet_info, key=lambda x: x.magnitude)
