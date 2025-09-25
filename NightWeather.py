@@ -211,3 +211,125 @@ Determine observing quality based on moon phase
             return "Best for planets, bright stars, and lunar observation"
         else:
             return "Ideal for lunar observation and bright planets only"
+            def print_stargazing_report(self):
+        """Print a comprehensive stargazing report"""
+        print("=" * 60)
+        print("🌟 STARGAZING REPORT 🌟")
+        print("=" * 60)
+        print(f"Location: {self.latitude:.2f}°N, {self.longitude:.2f}°W")
+        print(f"Date/Time: {self.get_current_time().strftime('%Y-%m-%d %H:%M UTC')}")
+        print()
+        
+        # Observing conditions
+        conditions = self.get_observing_conditions()
+        print("🌙 OBSERVING CONDITIONS")
+        print("-" * 30)
+        print(f"Conditions: {conditions['conditions']}")
+        print(f"Moon Phase: {conditions['moon_phase']}")
+        print(f"Moon Illumination: {conditions['moon_illumination']}%")
+        print(f"Recommendation: {conditions['recommendation']}")
+        print()
+        
+        # Moon information
+        moon_info = self.get_moon_phase()
+        print("🌕 MOON INFORMATION")
+        print("-" * 30)
+        print(f"Phase: {moon_info['phase_name']}")
+        print(f"Altitude: {moon_info['altitude']:.1f}°")
+        print(f"Azimuth: {moon_info['azimuth']:.1f}°")
+        if moon_info['next_rise']:
+            print(f"Next Rise: {moon_info['next_rise']}")
+        if moon_info['next_set']:
+            print(f"Next Set: {moon_info['next_set']}")
+        print()
+        
+        # Visible planets
+        planets = self.get_planet_info()
+        if planets:
+            print("🪐 VISIBLE PLANETS")
+            print("-" * 30)
+            for planet in planets:
+                print(f"{planet.name}: Magnitude {planet.magnitude:.1f}, "
+                      f"Distance {planet.distance:.2f} AU")
+        else:
+            print("🪐 VISIBLE PLANETS")
+            print("-" * 30)
+            print("No planets currently visible above horizon")
+        print()
+        
+        # Bright stars
+        stars = self.get_visible_stars()
+        if stars:
+            print("⭐ BRIGHTEST VISIBLE STARS")
+            print("-" * 30)
+            for star in stars[:5]:  # Show top 5
+                print(f"{star.name} ({star.constellation}): "
+                      f"Magnitude {star.magnitude:.2f}")
+        print()
+        
+        print("=" * 60)
+        print("Happy stargazing! 🌟")
+        print("=" * 60)
+        def main():
+    """Main function to run the stargazing app"""
+    print("Welcome to the Stargazing Information App!")
+    print()
+    
+    # Get user location (optional)
+    try:
+        lat = float(input("Enter your latitude (or press Enter for New York City): ") or "40.7128")
+        lon = float(input("Enter your longitude (or press Enter for New York City): ") or "-74.0060")
+    except ValueError:
+        print("Invalid input. Using default location (New York City).")
+        lat, lon = 40.7128, -74.0060
+    
+    # Create app instance
+    app = StargazingApp(lat, lon)
+    
+    # Print comprehensive report
+    app.print_stargazing_report()
+    
+    # Interactive menu
+    while True:
+        print("\nOptions:")
+        print("1. View current report")
+        print("2. Get moon phase info")
+        print("3. Get planet positions")
+        print("4. Get visible stars")
+        print("5. Get observing conditions")
+        print("6. Exit")
+        
+        choice = input("\nEnter your choice (1-6): ").strip()
+        
+        if choice == '1':
+            app.print_stargazing_report()
+        elif choice == '2':
+            moon = app.get_moon_phase()
+            print(f"\nMoon Phase: {moon['phase_name']}")
+            print(f"Illumination: {moon['illumination']}%")
+            print(f"Altitude: {moon['altitude']:.1f}°")
+        elif choice == '3':
+            planets = app.get_planet_info()
+            if planets:
+                print("\nVisible Planets:")
+                for planet in planets:
+                    print(f"{planet.name}: Mag {planet.magnitude:.1f}")
+            else:
+                print("\nNo planets currently visible")
+        elif choice == '4':
+            stars = app.get_visible_stars()
+            print(f"\nVisible Bright Stars ({len(stars)} total):")
+            for star in stars[:10]:
+                print(f"{star.name} ({star.constellation}): Mag {star.magnitude:.2f}")
+        elif choice == '5':
+            conditions = app.get_observing_conditions()
+            print(f"\nObserving Conditions: {conditions['conditions']}")
+            print(f"Recommendation: {conditions['recommendation']}")
+        elif choice == '6':
+            print("Thank you for using the Stargazing App! 🌟")
+            break
+        else:
+            print("Invalid choice. Please try again.")
+
+if __name__ == "__main__":
+    main()
