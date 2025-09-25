@@ -150,3 +150,29 @@ Only include planets that are above horizon
                 print(f"Error calculating {planet_name}: {e}")
 
         return sorted(planet_info, key=lambda x: x.magnitude)
+        def get_visible_stars(self, min_magnitude: float = 2.0) -> List[StarInfo]:
+        """
+        Get list of bright stars visible tonight
+
+        Args:
+            min_magnitude: Maximum magnitude (brightness) to include
+
+        Returns:
+            List of visible stars
+        """
+        visible_stars = []
+        current_time = self.get_current_time()
+        self.observer.date = current_time
+
+        for star in self.bright_stars:
+            if star.magnitude <= min_magnitude:
+                # Check if star is above horizon
+                star_obj = ephem.FixedBody()
+                star_obj._ra = ephem.hours(str(star.ra))
+                star_obj._dec = ephem.degrees(str(star.dec))
+                star_obj.compute(self.observer)
+
+                if star_obj.alt > 0:  # Above horizon
+                    visible_stars.append(star)
+
+        return sorted(visible_stars, key=lambda x: x.magnitude)
