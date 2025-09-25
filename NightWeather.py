@@ -203,7 +203,7 @@ class StargazingApp:
     
     def get_observing_conditions(self) -> Dict:
         """
-        Get current observing conditions
+        Get current observing conditions based on location, time, and moon phase
         
         Returns:
             Dictionary with observing conditions
@@ -211,41 +211,139 @@ class StargazingApp:
         current_time = self.get_current_time()
         moon_info = self.get_moon_phase(current_time)
         
-        # Determine observing quality based on moon phase
-        if moon_info['illumination'] < 5:
-            conditions = "Excellent - Dark sky"
-        elif moon_info['illumination'] < 15:
-            conditions = "Very Good - Minimal moonlight"
-        elif moon_info['illumination'] < 30:
-            conditions = "Good - Some moonlight"
-        elif moon_info['illumination'] < 60:
-            conditions = "Fair - Moderate moonlight"
-        elif moon_info['illumination'] < 85:
-            conditions = "Poor - Bright moonlight"
+        # Calculate location-based factors
+        light_pollution = self._estimate_light_pollution()
+        moon_altitude = moon_info['altitude']
+        sun_altitude = self._get_sun_altitude()
+        
+        # Determine base conditions from moon phase
+        base_score = self._get_moon_impact_score(moon_info['illumination'], moon_altitude)
+        
+        # Adjust for light pollution
+        light_pollution_penalty = self._get_light_pollution_penalty(light_pollution)
+        
+        # Adjust for time of day (sun altitude)
+        time_penalty = self._get_time_penalty(sun_altitude)
+        
+        # Calculate final observing score (0-100, higher is better)
+        final_score = max(0, base_score - light_pollution_penalty - time_penalty)
+        
+        # Determine conditions based on final score
+        if final_score >= 80:
+            conditions = "Excellent - Dark sky, minimal interference"
+        elif final_score >= 65:
+            conditions = "Very Good - Good visibility with minor interference"
+        elif final_score >= 50:
+            conditions = "Good - Decent conditions with some interference"
+        elif final_score >= 35:
+            conditions = "Fair - Moderate interference from light/moon"
+        elif final_score >= 20:
+            conditions = "Poor - Significant interference"
         else:
-            conditions = "Very Poor - Very bright moonlight"
+            conditions = "Very Poor - Heavy interference, not recommended"
         
         return {
             'conditions': conditions,
+            'score': round(final_score, 1),
             'moon_illumination': moon_info['illumination'],
             'moon_phase': moon_info['phase_name'],
-            'recommendation': self.get_observing_recommendation(moon_info['illumination'])
+            'moon_altitude': round(moon_altitude, 1),
+            'light_pollution': light_pollution,
+            'sun_altitude': round(sun_altitude, 1),
+            'recommendation': self.get_observing_recommendation(final_score)
         }
     
-    def get_observing_recommendation(self, moon_illumination: float) -> str:
-        """Get observing recommendations based on moon phase"""
-        if moon_illumination < 5:
-            return "Excellent - Perfect for deep sky objects, galaxies, and nebulae"
-        elif moon_illumination < 15:
-            return "Very Good - Great for deep sky objects and faint star clusters"
-        elif moon_illumination < 30:
-            return "Good - Suitable for planets, bright star clusters, and double stars"
-        elif moon_illumination < 60:
-            return "Fair - Best for planets, bright stars, and lunar observation"
-        elif moon_illumination < 85:
-            return "Poor - Only bright planets and lunar observation recommended"
+    def _estimate_light_pollution(self) -> str:
+        """Estimate light pollution based on location"""
+        # Simple estimation based on latitude/longitude patterns
+        # This is a simplified model - in reality, you'd use actual light pollution data
+        
+        # Major cities and their approximate light pollution levels
+        major_cities = {
+            (40.7128, -74.0060): "Very High",  # NYC
+            (34.0522, -118.2437): "Very High",  # LA
+            (41.8781, -87.6298): "Very High",  # Chicago
+            (29.7604, -95.3698): "High",       # Houston
+            (33.4484, -112.0740): "High",      # Phoenix
+            (39.7392, -104.9903): "High",      # Denver
+            (47.6062, -122.3321): "High",      # Seattle
+            (25.7617, -80.1918): "High",       # Miami
+        }
+        
+        # Check if we're near a major city
+        for (lat, lon), pollution in major_cities.items():
+            if abs(self.latitude - lat) < 0.5 and abs(self.longitude - lon) < 0.5:
+                return pollution
+        
+        # Estimate based on general patterns
+        if abs(self.latitude) < 30:  # Tropical/subtropical
+            return "Medium"
+        elif abs(self.latitude) < 60:  # Temperate
+            return "Low"
+        else:  # Polar
+            return "Very Low"
+    
+    def _get_sun_altitude(self) -> float:
+        """Get current sun altitude in degrees"""
+        sun = ephem.Sun()
+        sun.compute(self.observer)
+        return math.degrees(sun.alt)
+    
+    def _get_moon_impact_score(self, illumination: float, moon_altitude: float) -> float:
+        """Calculate moon impact on observing conditions (0-100, higher is better)"""
+        # Base score starts at 100 (perfect conditions)
+        base_score = 100
+        
+        # Moon illumination impact (0-50 points penalty)
+        illumination_penalty = (illumination / 100) * 50
+        
+        # Moon altitude impact (moon below horizon = no impact)
+        if moon_altitude < 0:
+            altitude_penalty = 0
         else:
-            return "Very Poor - Only lunar observation and very bright planets visible"
+            # Moon above horizon reduces score more when higher
+            altitude_penalty = (moon_altitude / 90) * 20
+        
+        return base_score - illumination_penalty - altitude_penalty
+    
+    def _get_light_pollution_penalty(self, light_pollution: str) -> float:
+        """Get penalty points for light pollution"""
+        penalties = {
+            "Very Low": 0,
+            "Low": 5,
+            "Medium": 15,
+            "High": 30,
+            "Very High": 45
+        }
+        return penalties.get(light_pollution, 20)
+    
+    def _get_time_penalty(self, sun_altitude: float) -> float:
+        """Get penalty for time of day (sun altitude)"""
+        if sun_altitude < -18:  # Astronomical twilight
+            return 0
+        elif sun_altitude < -12:  # Nautical twilight
+            return 5
+        elif sun_altitude < -6:   # Civil twilight
+            return 15
+        elif sun_altitude < 0:    # Sun below horizon
+            return 25
+        else:  # Sun above horizon
+            return 50
+    
+    def get_observing_recommendation(self, score: float) -> str:
+        """Get observing recommendations based on overall score"""
+        if score >= 80:
+            return "Perfect for deep sky objects, galaxies, and nebulae"
+        elif score >= 65:
+            return "Great for deep sky objects and faint star clusters"
+        elif score >= 50:
+            return "Good for planets, bright star clusters, and double stars"
+        elif score >= 35:
+            return "Best for planets, bright stars, and lunar observation"
+        elif score >= 20:
+            return "Only bright planets and lunar observation recommended"
+        else:
+            return "Only lunar observation and very bright planets visible"
     
     def print_stargazing_report(self):
         """Print a comprehensive stargazing report"""
@@ -260,9 +358,12 @@ class StargazingApp:
         conditions = self.get_observing_conditions()
         print("🌙 OBSERVING CONDITIONS")
         print("-" * 30)
+        print(f"Overall Score: {conditions['score']}/100")
         print(f"Conditions: {conditions['conditions']}")
-        print(f"Moon Phase: {conditions['moon_phase']}")
-        print(f"Moon Illumination: {conditions['moon_illumination']}%")
+        print(f"Moon Phase: {conditions['moon_phase']} ({conditions['moon_illumination']}% illuminated)")
+        print(f"Moon Altitude: {conditions['moon_altitude']}°")
+        print(f"Sun Altitude: {conditions['sun_altitude']}°")
+        print(f"Light Pollution: {conditions['light_pollution']}")
         print(f"Recommendation: {conditions['recommendation']}")
         print()
         
@@ -361,6 +462,10 @@ def main():
         elif choice == '5':
             conditions = app.get_observing_conditions()
             print(f"\nObserving Conditions: {conditions['conditions']}")
+            print(f"Overall Score: {conditions['score']}/100")
+            print(f"Light Pollution: {conditions['light_pollution']}")
+            print(f"Moon Altitude: {conditions['moon_altitude']}°")
+            print(f"Sun Altitude: {conditions['sun_altitude']}°")
             print(f"Recommendation: {conditions['recommendation']}")
         elif choice == '6':
             print("Thank you for using the Stargazing App! 🌟")
