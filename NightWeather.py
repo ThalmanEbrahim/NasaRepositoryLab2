@@ -10,6 +10,7 @@ import json
 from typing import Dict, List, Tuple, Optional
 import ephem
 from dataclasses import dataclass
+
 @dataclass
 class StarInfo:
     name: str
@@ -27,10 +28,10 @@ class PlanetInfo:
     elongation: float  # Angular distance from Sun
 
 class StargazingApp:
-    def init(self, latitude: float = 40.7128, longitude: float = -74.0060):
+    def __init__(self, latitude: float = 40.7128, longitude: float = -74.0060):
         """
         Initialize the stargazing app with observer location
-
+        
         Args:
             latitude: Observer's latitude in degrees (default: New York City)
             longitude: Observer's longitude in degrees (default: New York City)
@@ -40,8 +41,8 @@ class StargazingApp:
         self.observer = ephem.Observer()
         self.observer.lat = str(latitude)
         self.observer.lon = str(longitude)
-
-Bright stars data
+        
+        # Bright stars data
         self.bright_stars = [
             StarInfo("Sirius", -1.46, "Canis Major", 6.7525, -16.7161),
             StarInfo("Canopus", -0.74, "Carina", 6.3992, -52.6956),
@@ -54,60 +55,70 @@ Bright stars data
             StarInfo("Achernar", 0.46, "Eridanus", 1.6286, -57.2367),
             StarInfo("Hadar", 0.61, "Centaurus", 14.0639, -60.3731),
         ]
-
-Planet names for ephem
+        
+        # Planet names for ephem
         self.planets = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']
-
+        
     def get_current_time(self) -> datetime.datetime:
         """Get current UTC time"""
-        return datetime.datetime.utcnow()
-def get_next_rise_set(self, body, event_type: str) -> Optional[str]:
-        """Get next rise or set time for a celestial body"""
-        try:
-            if event_type == 'rise':
-                next_event = self.observer.next_rising(body)
-            else:
-                next_event = self.observer.next_setting(body)
-            return str(next_event)
-        except:
-            return None
-def get_moon_phase(self, date: Optional[datetime.datetime] = None) -> Dict:
+        return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    
+    def get_moon_phase(self, date: Optional[datetime.datetime] = None) -> Dict:
         """
         Calculate moon phase information
-
+        
         Args:
             date: Date to calculate for (default: current time)
-
+            
         Returns:
             Dictionary with moon phase information
         """
         if date is None:
             date = self.get_current_time()
-
+            
         self.observer.date = date
         moon = ephem.Moon()
         moon.compute(self.observer)
-
-Calculate moon phase (0 = new moon, 0.5 = full moon, 1 = new moon)
-        phase = moon.moon_phase
-
-Determine phase name
-        if phase < 0.125:
+        
+        # PyEphem moon_phase is actually the illumination fraction (0-1)
+        illumination_fraction = moon.moon_phase
+        illumination = illumination_fraction * 100
+        
+        # Calculate the actual phase angle to determine waxing vs waning
+        # We need to compare moon and sun positions
+        sun = ephem.Sun()
+        sun.compute(self.observer)
+        
+        # Calculate the elongation (angular distance between sun and moon)
+        moon_ra = moon.ra
+        moon_dec = moon.dec
+        sun_ra = sun.ra
+        sun_dec = sun.dec
+        
+        # Calculate elongation in degrees
+        elongation = math.degrees(ephem.separation((moon_ra, moon_dec), (sun_ra, sun_dec)))
+        
+        # Determine if moon is waxing or waning based on elongation
+        # Waxing: moon is east of sun (elongation 0-180°)
+        # Waning: moon is west of sun (elongation 180-360°)
+        is_waxing = elongation < 180
+        
+        # Determine phase name based on illumination and waxing/waning
+        if illumination < 1:
             phase_name = "New Moon"
-        elif phase < 0.375:
-            phase_name = "Waxing Crescent"
-        elif phase < 0.625:
-            phase_name = "First Quarter"
-        elif phase < 0.875:
-            phase_name = "Waxing Gibbous"
+        elif illumination < 25:
+            phase_name = "Waxing Crescent" if is_waxing else "Waning Crescent"
+        elif illumination < 50:
+            phase_name = "First Quarter" if is_waxing else "Last Quarter"
+        elif illumination < 75:
+            phase_name = "Waxing Gibbous" if is_waxing else "Waning Gibbous"
+        elif illumination < 100:
+            phase_name = "Full Moon"
         else:
             phase_name = "Full Moon"
-
-Calculate illumination percentage
-        illumination = (1 - abs(2 * phase - 1)) * 100
-
+        
         return {
-            'phase': phase,
+            'phase': illumination_fraction,
             'phase_name': phase_name,
             'illumination': round(illumination, 1),
             'altitude': math.degrees(moon.alt),
@@ -116,28 +127,29 @@ Calculate illumination percentage
             'next_rise': self.get_next_rise_set(moon, 'rise'),
             'next_set': self.get_next_rise_set(moon, 'set')
         }
-        def get_planet_info(self, date: Optional[datetime.datetime] = None) -> List[PlanetInfo]:
+    
+    def get_planet_info(self, date: Optional[datetime.datetime] = None) -> List[PlanetInfo]:
         """
         Get information about visible planets
-
+        
         Args:
             date: Date to calculate for (default: current time)
-
+            
         Returns:
             List of PlanetInfo objects
         """
         if date is None:
             date = self.get_current_time()
-
+            
         self.observer.date = date
         planet_info = []
-
+        
         for planet_name in self.planets:
             try:
                 planet = getattr(ephem, planet_name)()
                 planet.compute(self.observer)
-
-Only include planets that are above horizon
+                
+                # Only include planets that are above horizon
                 if planet.alt > 0:
                     planet_info.append(PlanetInfo(
                         name=planet_name,
@@ -148,22 +160,23 @@ Only include planets that are above horizon
                     ))
             except Exception as e:
                 print(f"Error calculating {planet_name}: {e}")
-
+                
         return sorted(planet_info, key=lambda x: x.magnitude)
-        def get_visible_stars(self, min_magnitude: float = 2.0) -> List[StarInfo]:
+    
+    def get_visible_stars(self, min_magnitude: float = 2.0) -> List[StarInfo]:
         """
         Get list of bright stars visible tonight
-
+        
         Args:
             min_magnitude: Maximum magnitude (brightness) to include
-
+            
         Returns:
             List of visible stars
         """
         visible_stars = []
         current_time = self.get_current_time()
         self.observer.date = current_time
-
+        
         for star in self.bright_stars:
             if star.magnitude <= min_magnitude:
                 # Check if star is above horizon
@@ -171,47 +184,70 @@ Only include planets that are above horizon
                 star_obj._ra = ephem.hours(str(star.ra))
                 star_obj._dec = ephem.degrees(str(star.dec))
                 star_obj.compute(self.observer)
-
+                
                 if star_obj.alt > 0:  # Above horizon
                     visible_stars.append(star)
-
+        
         return sorted(visible_stars, key=lambda x: x.magnitude)
-        def get_observing_conditions(self) -> Dict:
+    
+    def get_next_rise_set(self, body, event_type: str) -> Optional[str]:
+        """Get next rise or set time for a celestial body"""
+        try:
+            if event_type == 'rise':
+                next_event = self.observer.next_rising(body)
+            else:
+                next_event = self.observer.next_setting(body)
+            return str(next_event)
+        except:
+            return None
+    
+    def get_observing_conditions(self) -> Dict:
         """
         Get current observing conditions
-
+        
         Returns:
             Dictionary with observing conditions
         """
         current_time = self.get_current_time()
         moon_info = self.get_moon_phase(current_time)
-
-Determine observing quality based on moon phase
-        if moon_info['illumination'] < 10:
+        
+        # Determine observing quality based on moon phase
+        if moon_info['illumination'] < 5:
             conditions = "Excellent - Dark sky"
-        elif moon_info['illumination'] < 50:
+        elif moon_info['illumination'] < 15:
+            conditions = "Very Good - Minimal moonlight"
+        elif moon_info['illumination'] < 30:
             conditions = "Good - Some moonlight"
+        elif moon_info['illumination'] < 60:
+            conditions = "Fair - Moderate moonlight"
+        elif moon_info['illumination'] < 85:
+            conditions = "Poor - Bright moonlight"
         else:
-            conditions = "Fair - Bright moonlight"
-
+            conditions = "Very Poor - Very bright moonlight"
+        
         return {
             'conditions': conditions,
             'moon_illumination': moon_info['illumination'],
             'moon_phase': moon_info['phase_name'],
             'recommendation': self.get_observing_recommendation(moon_info['illumination'])
         }
-
+    
     def get_observing_recommendation(self, moon_illumination: float) -> str:
         """Get observing recommendations based on moon phase"""
-        if moon_illumination < 10:
-            return "Perfect for deep sky objects, galaxies, and nebulae"
-        elif moon_illumination < 25:
-            return "Good for planets, bright star clusters, and double stars"
-        elif moon_illumination < 50:
-            return "Best for planets, bright stars, and lunar observation"
+        if moon_illumination < 5:
+            return "Excellent - Perfect for deep sky objects, galaxies, and nebulae"
+        elif moon_illumination < 15:
+            return "Very Good - Great for deep sky objects and faint star clusters"
+        elif moon_illumination < 30:
+            return "Good - Suitable for planets, bright star clusters, and double stars"
+        elif moon_illumination < 60:
+            return "Fair - Best for planets, bright stars, and lunar observation"
+        elif moon_illumination < 85:
+            return "Poor - Only bright planets and lunar observation recommended"
         else:
-            return "Ideal for lunar observation and bright planets only"
-            def print_stargazing_report(self):
+            return "Very Poor - Only lunar observation and very bright planets visible"
+    
+    def print_stargazing_report(self):
         """Print a comprehensive stargazing report"""
         print("=" * 60)
         print("🌟 STARGAZING REPORT 🌟")
@@ -270,7 +306,8 @@ Determine observing quality based on moon phase
         print("=" * 60)
         print("Happy stargazing! 🌟")
         print("=" * 60)
-        def main():
+
+def main():
     """Main function to run the stargazing app"""
     print("Welcome to the Stargazing Information App!")
     print()
