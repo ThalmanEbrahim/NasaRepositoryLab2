@@ -176,3 +176,38 @@ Only include planets that are above horizon
                     visible_stars.append(star)
 
         return sorted(visible_stars, key=lambda x: x.magnitude)
+        def get_observing_conditions(self) -> Dict:
+        """
+        Get current observing conditions
+
+        Returns:
+            Dictionary with observing conditions
+        """
+        current_time = self.get_current_time()
+        moon_info = self.get_moon_phase(current_time)
+
+Determine observing quality based on moon phase
+        if moon_info['illumination'] < 10:
+            conditions = "Excellent - Dark sky"
+        elif moon_info['illumination'] < 50:
+            conditions = "Good - Some moonlight"
+        else:
+            conditions = "Fair - Bright moonlight"
+
+        return {
+            'conditions': conditions,
+            'moon_illumination': moon_info['illumination'],
+            'moon_phase': moon_info['phase_name'],
+            'recommendation': self.get_observing_recommendation(moon_info['illumination'])
+        }
+
+    def get_observing_recommendation(self, moon_illumination: float) -> str:
+        """Get observing recommendations based on moon phase"""
+        if moon_illumination < 10:
+            return "Perfect for deep sky objects, galaxies, and nebulae"
+        elif moon_illumination < 25:
+            return "Good for planets, bright star clusters, and double stars"
+        elif moon_illumination < 50:
+            return "Best for planets, bright stars, and lunar observation"
+        else:
+            return "Ideal for lunar observation and bright planets only"
