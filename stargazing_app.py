@@ -4,13 +4,17 @@ Stargazing Information App
 A comprehensive tool for astronomy enthusiasts to get stargazing information
 """
 
+# import all needed modules
 import datetime
 import math
 import json
 from typing import Dict, List, Tuple, Optional
 import ephem
 from dataclasses import dataclass
+import pytz
+from timezonefinder import TimezoneFinder
 
+# class to store star information
 @dataclass
 class StarInfo:
     name: str
@@ -19,6 +23,7 @@ class StarInfo:
     ra: float  # Right ascension in hours
     dec: float  # Declination in degrees
 
+# class to store planet information
 @dataclass
 class PlanetInfo:
     name: str
@@ -27,22 +32,31 @@ class PlanetInfo:
     distance: float  # Distance from Earth in AU
     elongation: float  # Angular distance from Sun
 
+# main app class
 class StargazingApp:
-    def __init__(self, latitude: float = 40.7128, longitude: float = -74.0060):
+    def __init__(self, latitude: float = 26.0, longitude: float = 50.0):
         """
         Initialize the stargazing app with observer location
         
         Args:
-            latitude: Observer's latitude in degrees (default: New York City)
-            longitude: Observer's longitude in degrees (default: New York City)
+            latitude: Observer's latitude in degrees (default: Bahrain)
+            longitude: Observer's longitude in degrees (default: Bahrain)
         """
+        # store location coordinates
         self.latitude = latitude
         self.longitude = longitude
+        
+        # create observer object for calculations
         self.observer = ephem.Observer()
         self.observer.lat = str(latitude)
         self.observer.lon = str(longitude)
         
-        # Bright stars data
+        # setup timezone for location
+        self.tf = TimezoneFinder()
+        self.timezone_str = self.tf.timezone_at(lat=latitude, lng=longitude)
+        self.timezone = pytz.timezone(self.timezone_str) if self.timezone_str else pytz.UTC
+        
+        # list of bright stars with their data
         self.bright_stars = [
             StarInfo("Sirius", -1.46, "Canis Major", 6.7525, -16.7161),
             StarInfo("Canopus", -0.74, "Carina", 6.3992, -52.6956),
@@ -56,13 +70,37 @@ class StargazingApp:
             StarInfo("Hadar", 0.61, "Centaurus", 14.0639, -60.3731),
         ]
         
-        # Planet names for ephem
+        # list of planets to track
         self.planets = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']
         
+    # get current time in local timezone
     def get_current_time(self) -> datetime.datetime:
-        """Get current UTC time"""
+        """Get current time in the location's timezone"""
+        utc_now = datetime.datetime.now(datetime.timezone.utc)
+        local_time = utc_now.astimezone(self.timezone)
+        return local_time
+    
+    # get current utc time for calculations
+    def get_current_time_utc(self) -> datetime.datetime:
+        """Get current UTC time (for ephem calculations)"""
         return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     
+    # get timezone information
+    def get_timezone_info(self) -> Dict:
+        """Get timezone information for the current location"""
+        current_time = self.get_current_time()
+        utc_time = self.get_current_time_utc()
+        
+        return {
+            'timezone_name': self.timezone_str or 'UTC',
+            'timezone_abbreviation': current_time.strftime('%Z'),
+            'utc_offset': current_time.strftime('%z'),
+            'local_time': current_time.strftime('%Y-%m-%d %H:%M:%S %Z'),
+            'utc_time': utc_time.strftime('%Y-%m-%d %H:%M:%S UTC'),
+            'is_dst': bool(current_time.dst())
+        }
+    
+    # calculate moon phase information
     def get_moon_phase(self, date: Optional[datetime.datetime] = None) -> Dict:
         """
         Calculate moon phase information
@@ -73,37 +111,36 @@ class StargazingApp:
         Returns:
             Dictionary with moon phase information
         """
+        # use current time if no date given
         if date is None:
-            date = self.get_current_time()
+            date = self.get_current_time_utc()
             
+        # setup observer and calculate moon position
         self.observer.date = date
         moon = ephem.Moon()
         moon.compute(self.observer)
         
-        # PyEphem moon_phase is actually the illumination fraction (0-1)
+        # get moon illumination percentage
         illumination_fraction = moon.moon_phase
         illumination = illumination_fraction * 100
         
-        # Calculate the actual phase angle to determine waxing vs waning
-        # We need to compare moon and sun positions
+        # calculate sun position for phase determination
         sun = ephem.Sun()
         sun.compute(self.observer)
         
-        # Calculate the elongation (angular distance between sun and moon)
+        # get coordinates for both moon and sun
         moon_ra = moon.ra
         moon_dec = moon.dec
         sun_ra = sun.ra
         sun_dec = sun.dec
         
-        # Calculate elongation in degrees
+        # calculate angle between moon and sun
         elongation = math.degrees(ephem.separation((moon_ra, moon_dec), (sun_ra, sun_dec)))
         
-        # Determine if moon is waxing or waning based on elongation
-        # Waxing: moon is east of sun (elongation 0-180°)
-        # Waning: moon is west of sun (elongation 180-360°)
+        # determine if moon is getting brighter or dimmer
         is_waxing = elongation < 180
         
-        # Determine phase name based on illumination and waxing/waning
+        # figure out phase name based on brightness
         if illumination < 1:
             phase_name = "New Moon"
         elif illumination < 25:
@@ -139,7 +176,7 @@ class StargazingApp:
             List of PlanetInfo objects
         """
         if date is None:
-            date = self.get_current_time()
+            date = self.get_current_time_utc()
             
         self.observer.date = date
         planet_info = []
@@ -174,7 +211,7 @@ class StargazingApp:
             List of visible stars
         """
         visible_stars = []
-        current_time = self.get_current_time()
+        current_time = self.get_current_time_utc()
         self.observer.date = current_time
         
         for star in self.bright_stars:
@@ -208,7 +245,7 @@ class StargazingApp:
         Returns:
             Dictionary with observing conditions
         """
-        current_time = self.get_current_time()
+        current_time = self.get_current_time_utc()
         moon_info = self.get_moon_phase(current_time)
         
         # Calculate location-based factors
@@ -260,6 +297,7 @@ class StargazingApp:
         
         # Major cities and their approximate light pollution levels
         major_cities = {
+            (26.0, 50.0): "Medium",            # Bahrain
             (40.7128, -74.0060): "Very High",  # NYC
             (34.0522, -118.2437): "Very High",  # LA
             (41.8781, -87.6298): "Very High",  # Chicago
@@ -347,11 +385,14 @@ class StargazingApp:
     
     def print_stargazing_report(self):
         """Print a comprehensive stargazing report"""
+        timezone_info = self.get_timezone_info()
         print("=" * 60)
         print("🌟 STARGAZING REPORT 🌟")
         print("=" * 60)
         print(f"Location: {self.latitude:.2f}°N, {self.longitude:.2f}°W")
-        print(f"Date/Time: {self.get_current_time().strftime('%Y-%m-%d %H:%M UTC')}")
+        print(f"Timezone: {timezone_info['timezone_name']} ({timezone_info['utc_offset']})")
+        print(f"Local Time: {timezone_info['local_time']}")
+        print(f"UTC Time: {timezone_info['utc_time']}")
         print()
         
         # Observing conditions
@@ -415,11 +456,11 @@ def main():
     
     # Get user location (optional)
     try:
-        lat = float(input("Enter your latitude (or press Enter for New York City): ") or "40.7128")
-        lon = float(input("Enter your longitude (or press Enter for New York City): ") or "-74.0060")
+        lat = float(input("Enter your latitude (or press Enter for Bahrain): ") or "26.0")
+        lon = float(input("Enter your longitude (or press Enter for Bahrain): ") or "50.0")
     except ValueError:
-        print("Invalid input. Using default location (New York City).")
-        lat, lon = 40.7128, -74.0060
+        print("Invalid input. Using default location (Bahrain).")
+        lat, lon = 26.0, 50.0
     
     # Create app instance
     app = StargazingApp(lat, lon)
