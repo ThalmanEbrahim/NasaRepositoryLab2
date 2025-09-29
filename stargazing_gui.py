@@ -4,6 +4,7 @@ Stargazing Information App - GUI Version
 A modern graphical interface for astronomy enthusiasts
 """
 
+# import gui and other needed modules
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import datetime
@@ -13,6 +14,7 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 import threading
 
+# class to store star information
 @dataclass
 class StarInfo:
     name: str
@@ -21,6 +23,7 @@ class StarInfo:
     ra: float
     dec: float
 
+# class to store planet information
 @dataclass
 class PlanetInfo:
     name: str
@@ -29,13 +32,15 @@ class PlanetInfo:
     distance: float
     elongation: float
 
+# main gui class
 class StargazingGUI:
     def __init__(self, root):
+        # setup main window
         self.root = root
         self.root.title("🌟 Stargazing Information App")
         self.root.geometry("1200x800")
         
-        # Define color scheme - Space theme
+        # define colors for space theme
         self.colors = {
             'bg_primary': '#0B1426',      # Deep space blue
             'bg_secondary': '#1A2332',    # Lighter space blue
@@ -50,32 +55,33 @@ class StargazingGUI:
             'border': '#3A4A5C'           # Border color
         }
         
-        # Configure root window
+        # setup window background
         self.root.configure(bg=self.colors['bg_primary'])
         
-        # Initialize app with default location (Bahrain)
+        # set default location coordinates
         self.app = None
         self.latitude = 26.0
         self.longitude = 50.0
         
-        # Setup styling
+        # setup gui styling
         self.setup_styles()
         
-        # Create the GUI
+        # create all gui elements
         self.create_widgets()
         self.update_data()
     
+    # setup gui styling and colors
     def setup_styles(self):
         """Setup custom styles for ttk widgets"""
         style = ttk.Style()
         
-        # Try to use a dark theme if available
+        # try to use dark theme
         try:
-            style.theme_use('clam')  # Use clam theme as base for better customization
+            style.theme_use('clam')
         except:
             pass
         
-        # Configure default styles for all ttk widgets
+        # set default widget colors
         style.configure('.',
                        background=self.colors['bg_primary'],
                        foreground=self.colors['text_primary'],
@@ -83,15 +89,14 @@ class StargazingGUI:
                        selectbackground=self.colors['accent_blue'],
                        selectforeground='white')
         
-        # Configure main frame style
+        # set frame colors
         style.configure('Main.TFrame',
                        background=self.colors['bg_primary'])
         
-        # Configure default frame style
         style.configure('TFrame',
                        background=self.colors['bg_primary'])
         
-        # Configure default label style
+        # set label colors
         style.configure('TLabel',
                        background=self.colors['bg_primary'],
                        foreground=self.colors['text_primary'])
@@ -892,24 +897,26 @@ def main():
     
     app = StargazingGUI(root)
     
-    # Center the window if not maximized
+    # center window on screen
     root.update_idletasks()
     if root.state() != 'zoomed':
         x = (root.winfo_screenwidth() // 2) - (root.winfo_width() // 2)
         y = (root.winfo_screenheight() // 2) - (root.winfo_height() // 2)
         root.geometry(f"+{x}+{y}")
     
-    # Add window closing protocol
+    # handle window closing
     def on_closing():
         root.quit()
         root.destroy()
     
     root.protocol("WM_DELETE_WINDOW", on_closing)
     
+    # start gui main loop
     try:
         root.mainloop()
     except KeyboardInterrupt:
         on_closing()
 
+# run gui when script is executed
 if __name__ == "__main__":
     main()
